@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipInputStream;
 
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
@@ -23,12 +24,15 @@ import org.activiti.engine.history.HistoricProcessInstance;
 import org.activiti.engine.history.HistoricProcessInstanceQuery;
 import org.activiti.engine.impl.RepositoryServiceImpl;
 import org.activiti.engine.impl.persistence.entity.ProcessDefinitionEntity;
+import org.activiti.engine.repository.DeploymentBuilder;
 import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.engine.runtime.ProcessInstanceQuery;
 import org.activiti.engine.task.Task;
 import org.activiti.image.impl.DefaultProcessDiagramGenerator;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -83,12 +87,26 @@ public class ActivitiController {
 	}
 
 	@RequestMapping(value = "/uploadworkflow", method = RequestMethod.POST)
-	public String fileupload(@RequestParam MultipartFile uploadfile, HttpServletRequest request) {
+	public String fileupload(@RequestParam("uploadfile") MultipartFile file) {
 		try {
-			MultipartFile file = uploadfile;
-			String filename = file.getOriginalFilename();
+			String fileName = file.getOriginalFilename();
 			InputStream is = file.getInputStream();
-			rep.createDeployment().addInputStream(filename, is).deploy();
+			//获取扩展名
+			String extension = FilenameUtils.getExtension(fileName);
+			DeploymentBuilder deploymentBuilder = rep.createDeployment();
+			//压缩包类型文件
+			if (StringUtils.equals("zip",extension) || StringUtils.equals("bar",extension)){
+				ZipInputStream zipInputStream = new ZipInputStream(is);
+				deploymentBuilder.addZipInputStream(zipInputStream).deploy();
+				//png文件
+			}else if (StringUtils.equals("png",extension)){
+				deploymentBuilder.addInputStream(fileName,is).deploy();
+			}else if(fileName.indexOf("bpmn20.xml") != -1){
+				deploymentBuilder.addInputStream(fileName,is).deploy();
+			}else if(StringUtils.equals("bpmn",extension)){
+				String baseName = FilenameUtils.getBaseName(fileName);
+				deploymentBuilder.addInputStream(baseName + ".bpmn20.xml",is).deploy();
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -193,7 +211,7 @@ public class ActivitiController {
 		grid.setTotal(0);
 		grid.setRows(new ArrayList<LeaveTask>());
 		// 先做权限检查，对于没有部门领导审批权限的用户,直接返回空
-		String userid = (String) session.getAttribute("username");
+		String userid = String.valueOf(session.getAttribute("username"));
 		int uid = systemservice.getUidByusername(userid);
 		User user = systemservice.getUserByid(uid);
 		List<User_role> userroles = user.getUser_roles();
@@ -564,7 +582,7 @@ public class ActivitiController {
 			process.setExecutionid(p.getId());
 			process.setProcessInstanceid(p.getProcessInstanceId());
 			LeaveApply l = leaveservice.getleave(Integer.parseInt(p.getBusinessKey()));
-			if (l.getUser_id().equals(userid))
+			if (null != l && l.getUser_id().equals(userid))
 				list.add(process);
 			else
 				continue;

@@ -60,7 +60,7 @@
 		    where uid = #{uid,jdbcType=INTEGER}
     </update>
     
-    <select id="getUidByusername" resultType="int" parameterType="String">
+    <select id="getUidByusername" resultType="java.lang.Integer" parameterType="String">
     	select uid from user where username=#{username} 
     </select>
 </mapper>
